@@ -6,12 +6,10 @@ import auth
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
-# 1. Create Database Tables
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Sweet Shop API")
 
-# 2. Password Hashing Setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password):
@@ -21,15 +19,12 @@ def get_password_hash(password):
 def health_check():
     return {"status": "ok"}
 
-# 3. Registration Endpoint
 @app.post("/api/auth/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
-    # check for user existence
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # hash pass
     hashed_password = get_password_hash(user.password)
     new_user = models.User(
         username=user.username,
@@ -90,3 +85,22 @@ def create_sweet(sweet: schemas.SweetCreate,
 def read_sweets(db: Session = Depends(database.get_db)):
     sweets = db.query(models.Sweet).all()
     return sweets
+
+@app.post("/api/sweets/{sweet_id}/purchase")
+def purchase_sweet(sweet_id: int, 
+                   db: Session = Depends(database.get_db), 
+                   current_user: models.User = Depends(get_current_user)):
+    
+    sweet = db.query(models.Sweet).filter(models.Sweet.id == sweet_id).first()
+    
+    if not sweet:
+        raise HTTPException(status_code=404, detail="Sweet not found")
+    
+    if sweet.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Out of stock")
+    
+    sweet.quantity -= 1
+    db.commit()
+    db.refresh(sweet)
+    
+    return {"message": "Purchase successful", "remaining_quantity": sweet.quantity}

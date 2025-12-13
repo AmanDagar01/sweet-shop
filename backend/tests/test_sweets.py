@@ -5,7 +5,6 @@ import uuid
 client = TestClient(app)
 
 def get_auth_token():
-    # Helper to register/login and get a token
     username = f"admin_{uuid.uuid4()}"
     client.post("/api/auth/register", json={
         "username": username,
@@ -29,7 +28,6 @@ def test_create_sweet():
         "quantity": 100
     }
 
-    # 1. Test success with token
     response = client.post("/api/sweets", json=payload, headers=headers)
     assert response.status_code == 201
     data = response.json()
@@ -37,7 +35,6 @@ def test_create_sweet():
     assert data["quantity"] == 100
 
 def test_create_sweet_unauthorized():
-    # 2. Test fail without token
     payload = {"name": "Candy", "category": "Test", "price": 1.0, "quantity": 10}
-    response = client.post("/api/sweets", json=payload) # No headers
+    response = client.post("/api/sweets", json=payload)
     assert response.status_code == 401
