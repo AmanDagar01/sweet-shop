@@ -18,3 +18,14 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    
+class SweetCreate(BaseModel):
+    name: str
+    category: str
+    price: float
+    quantity: int
+
+class SweetResponse(SweetCreate):
+    id: int
+    
+    model_config = ConfigDict(from_attributes=True)

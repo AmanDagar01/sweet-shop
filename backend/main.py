@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import models, schemas, database
 import auth
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 
 # 1. Create Database Tables
 models.Base.metadata.create_all(bind=database.engine)
@@ -52,3 +54,39 @@ def login(login_req: schemas.LoginRequest, db: Session = Depends(database.get_db
     
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+@app.post("/api/sweets", response_model=schemas.SweetResponse, status_code=status.HTTP_201_CREATED)
+def create_sweet(sweet: schemas.SweetCreate, 
+                 db: Session = Depends(database.get_db), 
+                 current_user: models.User = Depends(get_current_user)): # Protected
+    new_sweet = models.Sweet(**sweet.model_dump())
+    db.add(new_sweet)
+    db.commit()
+    db.refresh(new_sweet)
+    return new_sweet
+
+@app.get("/api/sweets", response_model=list[schemas.SweetResponse])
+def read_sweets(db: Session = Depends(database.get_db)):
+    sweets = db.query(models.Sweet).all()
+    return sweets
