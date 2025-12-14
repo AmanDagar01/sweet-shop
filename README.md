@@ -69,5 +69,5 @@ Follow these steps to run the project locally.
 
 ### **1. Clone the Repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/AmanDagar01/sweet-shop.git
 cd sweet-shop
