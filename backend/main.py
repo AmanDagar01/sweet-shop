@@ -5,10 +5,22 @@ import models, schemas, database
 import auth
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from typing import Optional
+
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Sweet Shop API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -37,10 +49,10 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
     return new_user
 
 @app.post("/api/auth/login", response_model=schemas.Token)
-def login(login_req: schemas.LoginRequest, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.username == login_req.username).first()
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
     
-    if not user or not auth.verify_password(login_req.password, user.hashed_password):
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -80,6 +92,21 @@ def create_sweet(sweet: schemas.SweetCreate,
     db.commit()
     db.refresh(new_sweet)
     return new_sweet
+
+@app.get("/api/sweets/search", response_model=list[schemas.SweetResponse])
+def search_sweets(
+    q: Optional[str] = None, 
+    db: Session = Depends(database.get_db)
+):
+    query = db.query(models.Sweet)
+    
+    if q:
+        query = query.filter(
+            (models.Sweet.name.ilike(f"%{q}%")) | 
+            (models.Sweet.category.ilike(f"%{q}%"))
+        )
+        
+    return query.all()
 
 @app.get("/api/sweets", response_model=list[schemas.SweetResponse])
 def read_sweets(db: Session = Depends(database.get_db)):
